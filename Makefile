@@ -12,13 +12,17 @@ ARCH = -mmcu=atmega328p
 OBJDIR = obj
 BINDIR = bin
 
-.DEFAULT_GOAL := blink
+.DEFAULT_GOAL := weather
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(OBJDIR)
 	$(CC) $(ARCH) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(BINDIR)/blink.elf: $(OBJDIR)/blink.o
+$(BINDIR)/blink.elf: $(OBJDIR)/blink.o $(OBJDIR)/uart.o $(OBJDIR)/led.o
+	@mkdir -p $(BINDIR)
+	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
+
+$(BINDIR)/weather.elf: $(OBJDIR)/weather.o $(OBJDIR)/uart.o $(OBJDIR)/led.o
 	@mkdir -p $(BINDIR)
 	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
 
@@ -31,3 +35,6 @@ clean:
 
 .PHONY: blink
 blink: $(BINDIR)/blink.hex
+
+.PHONY: weather
+weather: $(BINDIR)/weather.hex

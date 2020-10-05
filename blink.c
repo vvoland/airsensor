@@ -1,24 +1,30 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
+#include "uart.h"
+#include "led.h"
 
 #define DELAYTIME 1000
 
-#define setBit(sfr, bit)     (_SFR_BYTE(sfr) |= (1 << bit))
-#define clearBit(sfr, bit)   (_SFR_BYTE(sfr) &= ~(1 << bit))
-#define toggleBit(sfr, bit)  (_SFR_BYTE(sfr) ^= (1 << bit))
-
 int main(void) {
 
-  setBit(DDRB, PB0);
+    uart_init(4800);
 
-  while (1) {
-    setBit(PORTB, PB0);
-    _delay_ms(DELAYTIME);
+    struct Led led = {
+        .port = PORTB,
+        .pin = PB0
+    };
+    led_on(led);
 
-    clearBit(PORTB, PB0);
-    _delay_ms(DELAYTIME);
-  }
+    while (1) {
+        uart_transmit("ON\r\n");
+        led_on(led);
+        _delay_ms(DELAYTIME);
 
-  return 0;
+        uart_transmit("OFF\r\n");
+        led_off(led);
+        _delay_ms(DELAYTIME);
+    }
+
+    return 0;
 }
