@@ -1,3 +1,1 @@
-clang
-%c -std=c99
--I/usr/lib/avr/include/
+%compile_commands.json

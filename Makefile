@@ -29,9 +29,12 @@ $(BINDIR)/weather.elf: $(OBJDIR)/weather.o $(OBJDIR)/uart.o $(OBJDIR)/led.o
 $(BINDIR)/%.hex: $(BINDIR)/%.elf
 	$(OBJCOPY) -j .text -j .data -O ihex $< $@
 
+db: clean
+	make -n | compiledb
+
 clean:
-	rm -r $(BINDIR)
-	rm -r $(OBJDIR)
+	rm -r $(BINDIR) || true
+	rm -r $(OBJDIR) || true
 
 .PHONY: blink
 blink: $(BINDIR)/blink.hex
