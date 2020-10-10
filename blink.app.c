@@ -11,8 +11,10 @@ int main(void) {
     uart_init(4800);
 
     struct Led led = {
-        .port = PORTB,
-        .pin = PB0
+        .Gpio = {
+            .Port = PORTB,
+            .Pin = PB0
+        }
     };
     led_on(led);
 

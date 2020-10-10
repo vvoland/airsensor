@@ -12,17 +12,21 @@ ARCH = -mmcu=atmega328p
 OBJDIR = obj
 BINDIR = bin
 
+SRCS = $(wildcard *.c)
+SRCS := $(filter-out $(wildcard *.app.c), $(SRCS))
+OBJS = $(addprefix $(OBJDIR)/, $(patsubst %.c, %.o, $(SRCS)))
+
 .DEFAULT_GOAL := weather
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(OBJDIR)
 	$(CC) $(ARCH) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(BINDIR)/blink.elf: $(OBJDIR)/blink.o $(OBJDIR)/uart.o $(OBJDIR)/led.o
+$(BINDIR)/blink.elf: $(OBJDIR)/blink.app.o $(OBJS)
 	@mkdir -p $(BINDIR)
 	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/weather.elf: $(OBJDIR)/weather.o $(OBJDIR)/uart.o $(OBJDIR)/led.o
+$(BINDIR)/weather.elf: $(OBJS) $(OBJDIR)/weather.app.o
 	@mkdir -p $(BINDIR)
 	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
 

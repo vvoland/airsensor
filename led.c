@@ -2,10 +2,13 @@
 
 #include "led.h"
 
+
 void led_on(struct Led led) {
-    _SFR_BYTE(led.port) |= (1 << led.pin);
+    gpio_set_direction(led.Gpio, GpioOutput);
+    gpio_write(led.Gpio, true);
 }
 
 void led_off(struct Led led) {
-    _SFR_BYTE(led.port) &= ~(1 << led.pin);
+    gpio_set_direction(led.Gpio, GpioOutput);
+    gpio_write(led.Gpio, false);
 }

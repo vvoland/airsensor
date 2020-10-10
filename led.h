@@ -1,8 +1,8 @@
 #pragma once
+#include "gpio.h"
 
 struct Led {
-    unsigned int port;
-    unsigned int pin;
+    struct Gpio Gpio;
 };
 
 void led_on(struct Led led);
