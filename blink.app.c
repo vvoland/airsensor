@@ -18,6 +18,11 @@ int main(void) {
     };
     led_on(led);
 
+    struct Gpio test = {
+        .Port = PORTB,
+        .Pin = PB1
+    };
+
     while (1) {
         uart_transmit("ON\r\n");
         led_on(led);

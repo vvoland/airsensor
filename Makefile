@@ -1,13 +1,22 @@
 F_CPU = 1000000UL
 
 CC = avr-gcc
+LD = avr-ld
 OBJCOPY = avr-objcopy
 
-CFLAGS = -Os -g -Wall -Wextra
+CFLAGS = -Ofast -Wall -Wextra
 CFLAGS += -I/usr/lib/avr/include/
 CFLAGS += -DF_CPU=$(F_CPU)
 LDFLAGS = 
-ARCH = -mmcu=atmega328p
+
+ifeq ($(CC), clang)
+	CFLAGS += -target avr
+	LDFLAGS += -target avr
+	CFLAGS += -D__DELAY_BACKWARD_COMPATIBLE__
+endif
+
+MCU = atmega328p
+ARCH = -mmcu=$(MCU)
 
 OBJDIR = obj
 BINDIR = bin
@@ -26,15 +35,20 @@ $(BINDIR)/blink.elf: $(OBJDIR)/blink.app.o $(OBJS)
 	@mkdir -p $(BINDIR)
 	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
 
+$(BINDIR)/test.elf: $(OBJDIR)/test.app.o $(OBJS)
+	@mkdir -p $(BINDIR)
+	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
+
 $(BINDIR)/weather.elf: $(OBJS) $(OBJDIR)/weather.app.o
 	@mkdir -p $(BINDIR)
 	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
 
 $(BINDIR)/%.hex: $(BINDIR)/%.elf
+	avr-size -C --mcu=$(MCU) $^
 	$(OBJCOPY) -j .text -j .data -O ihex $< $@
 
 db: clean
-	make -n | compiledb
+	make blink test weather -n | compiledb
 
 clean:
 	rm -r $(BINDIR) || true
@@ -42,6 +56,9 @@ clean:
 
 .PHONY: blink
 blink: $(BINDIR)/blink.hex
+
+.PHONY: test
+test: $(BINDIR)/test.hex
 
 .PHONY: weather
 weather: $(BINDIR)/weather.hex

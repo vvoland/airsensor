@@ -8,8 +8,13 @@ enum GpioPort {
 };
 
 enum GpioDirection {
-    GpioOutput = 0,
-    GpioInput = 1
+    GpioInput = 0,
+    GpioOutput = 1
+};
+
+enum GpioValue {
+    GpioLow = 0,
+    GpioHigh = 1
 };
 
 struct Gpio {
@@ -18,7 +23,8 @@ struct Gpio {
 };
 
 void gpio_set_direction(struct Gpio gpio, enum GpioDirection direction);
+void gpio_set_direction_optimized(struct Gpio gpio, enum GpioDirection direction);
 enum GpioDirection gpio_get_direction(struct Gpio gpio);
-void gpio_write(struct Gpio gpio, bool value);
-bool gpio_read(struct Gpio gpio);
+void gpio_write(struct Gpio gpio, enum GpioValue value);
+enum GpioValue gpio_read(struct Gpio gpio);
 

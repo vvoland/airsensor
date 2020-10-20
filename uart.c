@@ -1,4 +1,7 @@
 #include <avr/io.h>
+#include <stdarg.h>
+#include <math.h>
+#include <stdio.h>
 
 #include "uart.h"
 
@@ -29,4 +32,22 @@ void uart_transmit_string(const char* string) {
 
 void uart_transmit(const char* string) {
     uart_transmit_string(string);
+}
+
+int uart_printf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int written = 0;
+
+#if __clang__
+    uart_transmit(fmt);
+    while (fmt[written++]);
+#else
+    char buf[128];
+    written = vsnprintf(buf, sizeof(buf), fmt, args);
+    uart_transmit(buf);
+#endif
+
+    va_end(args);
+    return written;
 }
