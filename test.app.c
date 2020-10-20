@@ -69,12 +69,12 @@ int main(void) {
         END_MEASURE("GPIO_B_OUT(PB0)");
 
         MEASURE;
-        GPIO_B_WRITE(PB0, GPIO_HIGH);
-        END_MEASURE("GPIO_B_WRITE(PB0, GPIO_HIGH)");
+        GPIO_B_HIGH(PB0);
+        END_MEASURE("GPIO_B_HIGH(PB0)");
 
         MEASURE;
-        GPIO_B_WRITE(PB0, GPIO_LOW);
-        END_MEASURE("GPIO_B_WRITE(PB0, GPIO_LOW)");
+        GPIO_B_LOW(PB0);
+        END_MEASURE("GPIO_B_LOW(PB0)");
 
         MEASURE;
         GPIO_B_IN(PB0);

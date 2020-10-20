@@ -1,4 +1,4 @@
-F_CPU = 1000000UL
+F_CPU = 8000000UL
 
 CC = avr-gcc
 LD = avr-ld
