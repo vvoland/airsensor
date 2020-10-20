@@ -4,6 +4,7 @@
 #include "uart.h"
 #include "led.h"
 #include "gpio.h"
+#include "fast_gpio.h"
 
 #define DELAYTIME 1000
 
@@ -62,7 +63,29 @@ int main(void) {
         END_MEASURE("gpio_read -> %d", val);
 
         uart_printf("==========\r\n");
-/*
+
+        MEASURE;
+        GPIO_B_OUT(PB0);
+        END_MEASURE("GPIO_B_OUT(PB0)");
+
+        MEASURE;
+        GPIO_B_WRITE(PB0, GPIO_HIGH);
+        END_MEASURE("GPIO_B_WRITE(PB0, GPIO_HIGH)");
+
+        MEASURE;
+        GPIO_B_WRITE(PB0, GPIO_LOW);
+        END_MEASURE("GPIO_B_WRITE(PB0, GPIO_LOW)");
+
+        MEASURE;
+        GPIO_B_IN(PB0);
+        END_MEASURE("GPIO_B_IN(PB0)");
+
+        MEASURE;
+        volatile int val_raw = ((GPIO_B_READ(PB0))) != 0 ? 1 : 0;
+        END_MEASURE("GPIO_B_READ(PB0) -> %d", val_raw);
+
+        uart_printf("==========\r\n");
+
         MEASURE;
         DDRB |= (1 << PB0);
         END_MEASURE("DDRB |= (1 << PB0)");
@@ -84,8 +107,8 @@ int main(void) {
         END_MEASURE("PINB & (1 << PB0) -> %d", val_raw);
 
         uart_printf("==========\r\n");
-        */
-        //_delay_ms(DELAYTIME);
+
+        _delay_ms(DELAYTIME);
     }
 
     return 0;
