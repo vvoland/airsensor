@@ -2,6 +2,7 @@
 #include "uart.h"
 #include "led.h"
 #include "gpio.h"
+#include "log.h"
 
 #include <avr/io.h>
 #include <util/delay.h>
@@ -29,27 +30,28 @@ int main(void) {
 #error "Unsupported CPU speed"
 #endif
     uart_init(4800);
-    uart_printf("Init\r\n");
-    dht11_init();
+    log_init(Log_UART);
+    log_print("Init\r\n");
 
+    dht11_init();
 
     while (1) {
 
-        uart_printf("Time: %d\r\n", TCNT0);
+        log_print("Time: %d\r\n", TCNT0);
         led_on(read_indicator);
-        uart_printf("Time2: %d\r\n", TCNT0);
-        uart_transmit("Reading... ");
+        log_print("Time2: %d\r\n", TCNT0);
+        log_print("Reading... ");
 
         unsigned int temperature = 0;
         unsigned int humidity = 0;
         if (dht11_read(&temperature, &humidity)) {
-            uart_printf("Temperature: %d | Humidity: %d \r\n", temperature, humidity);
+            log_print("Temperature: %d | Humidity: %d \r\n", temperature, humidity);
         }
 
-        uart_transmit("Sleeping... \r\n");
+        log_print("Sleeping... \r\n");
         _delay_ms(1000);
         led_off(read_indicator);
-        _delay_ms(4000);
+        _delay_ms(10000);
     }
 
     return 0;

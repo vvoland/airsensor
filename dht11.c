@@ -1,6 +1,7 @@
 #include "dht11.h"
 #include "uart.h"
 #include "fast_gpio.h"
+#include "log.h"
 
 #include <avr/io.h>
 #include <util/delay.h>
@@ -17,7 +18,7 @@
 #define GPIO_OUT_HIGH()   GPIO_B_HIGH(DHT11_PIN)
 
 #define DHT11_WAIT(microseconds) (_delay_us(microseconds))
-#define DHT11_ERROR(err) do { uart_transmit(err); uart_transmit("\r\n"); } while (0)
+#define DHT11_ERROR(err, ...) do { log_print(err, __VA_ARGS__); log_print("\r\n"); } while (0)
 #define DHT11_TIMEOUT(title, target, dur_us) \
     do \
     { \
@@ -33,8 +34,7 @@
             while (!ok && TCNT0 < rem)   ok |= GPIO_READ() == target;\
         } \
         if (!ok && GPIO_READ() != target) { \
-            uart_printf("DHT11 timeout "title); \
-            uart_printf("\r\n"); \
+            DHT11_ERROR("DHT11 timeout %s", title); \
             goto err; \
         } \
     } while (0)
@@ -106,8 +106,8 @@ bool dht11_read(unsigned int* temperature, unsigned int* humidity) {
     uint8_t expected_checksum = total_checksum & 0xFF;
 
     if (response.Checksum != expected_checksum) {
-        DHT11_ERROR("DHT bad checksum");
-        uart_printf("got: %x, expected: %x \r\n", response.Checksum, expected_checksum);
+        DHT11_ERROR("DHT bad checksum\r\n"
+            "got: %x, expected: %x \r\n", response.Checksum, expected_checksum);
     }
 
     (*temperature) = response.TemperatureIntegral;
@@ -116,7 +116,7 @@ bool dht11_read(unsigned int* temperature, unsigned int* humidity) {
     dht11_init();
     return true;
 err:
-    uart_printf("bit %d; i %d\r\n", bit, i);
+    DHT11_ERROR("bit %d; i %d\r\n", bit, i);
     dht11_init();
     return false;
 }
