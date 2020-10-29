@@ -18,19 +18,19 @@ void uart_init(unsigned int baud_rate) {
     UCSR0C = (0 << USBS0) | (3 << UCSZ00);
 }
 
-void uart_transmit_char(unsigned char character) {
+inline void uart_transmit_char(unsigned char character) {
     // Wait for empty transmit buffer
     while ((UCSR0A & (1 << UDRE0)) == 0);
 
     UDR0 = character;
 }
 
-void uart_transmit_string(const char* string) {
+inline void uart_transmit_string(const char* string) {
     while (*string)
         uart_transmit_char(*string++);
 }
 
-void uart_transmit(const char* string) {
+inline void uart_transmit(const char* string) {
     uart_transmit_string(string);
 }
 

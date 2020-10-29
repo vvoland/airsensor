@@ -1,8 +1,8 @@
 #pragma once
 
 enum LogType {
-    Log_None,
-    Log_UART
+    LogNone,
+    LogUART
 };
 
 void log_init(enum LogType type);

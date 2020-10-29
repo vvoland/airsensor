@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-static enum LogType Type = Log_None;
+static enum LogType Type = LogNone;
 
 void log_init(enum LogType type) {
     Type = type;
@@ -14,10 +14,9 @@ void log_print(const char* format, ...) {
     va_list args;
     va_start(args, format);
 
-    char buf[128];
-    vsnprintf(buf, sizeof(buf), format, args);
-
-    if (Type == Log_UART) {
+    if (Type == LogUART) {
+        char buf[128];
+        vsnprintf(buf, sizeof(buf), format, args);
         uart_transmit_string(buf);
     }
 

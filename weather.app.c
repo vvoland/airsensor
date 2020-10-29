@@ -3,10 +3,12 @@
 #include "led.h"
 #include "gpio.h"
 #include "log.h"
+#include "mlt_bt05.h"
 
 #include <avr/io.h>
 #include <util/delay.h>
 
+#include <stdio.h>
 #include <assert.h>
 #include <time.h>
 
@@ -29,11 +31,16 @@ int main(void) {
 #else
 #error "Unsupported CPU speed"
 #endif
-    uart_init(4800);
-    log_init(Log_UART);
+    //uart_init(4800);
+    //log_init(LogUART);
+
     log_print("Init\r\n");
+    bt_mlt05_init();
 
     dht11_init();
+
+    bt_mlt05_set_name("WeatherWoland");
+    bt_mlt05_set_pin("432523");
 
     while (1) {
 
@@ -45,7 +52,12 @@ int main(void) {
         unsigned int temperature = 0;
         unsigned int humidity = 0;
         if (dht11_read(&temperature, &humidity)) {
-            log_print("Temperature: %d | Humidity: %d \r\n", temperature, humidity);
+            char buffer[64];
+            snprintf(buffer, sizeof(buffer), 
+                    "T: %d | H: %d\r\n",
+                    temperature, humidity);
+
+            bt_mlt05_send_string(buffer);
         }
 
         log_print("Sleeping... \r\n");

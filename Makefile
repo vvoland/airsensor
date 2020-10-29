@@ -31,15 +31,7 @@ $(OBJDIR)/%.o: %.c
 	@mkdir -p $(OBJDIR)
 	$(CC) $(ARCH) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(BINDIR)/blink.elf: $(OBJDIR)/blink.app.o $(OBJS)
-	@mkdir -p $(BINDIR)
-	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
-
-$(BINDIR)/test.elf: $(OBJDIR)/test.app.o $(OBJS)
-	@mkdir -p $(BINDIR)
-	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
-
-$(BINDIR)/weather.elf: $(OBJS) $(OBJDIR)/weather.app.o
+$(BINDIR)/%.elf: $(OBJS) $(OBJDIR)/%.app.o
 	@mkdir -p $(BINDIR)
 	$(CC) $(ARCH) $(LDFLAGS) $^ -o $@
 
@@ -56,6 +48,9 @@ clean:
 
 .PHONY: blink
 blink: $(BINDIR)/blink.hex
+
+.PHONY: bt
+bt: $(BINDIR)/bt.hex
 
 .PHONY: test
 test: $(BINDIR)/test.hex
