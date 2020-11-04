@@ -36,3 +36,11 @@ void bt_mlt05_send_string(const char* str) {
     uart_transmit_string(str);
 }
 
+uint8_t bt_mlt05_receive() {
+    return uart_receive_byte();
+}
+
+unsigned int bt_mlt05_receive_string(char* buffer, unsigned int buffer_size) {
+    return uart_receive_string(buffer, buffer_size);
+}
+

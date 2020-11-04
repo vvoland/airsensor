@@ -49,7 +49,7 @@ void dht11_init() {
 }
 
 
-bool dht11_read(unsigned int* temperature, unsigned int* humidity) {
+bool dht11_read(int8_t* temperature, uint8_t* humidity) {
     uint8_t i = 0, bit = 0;
 
     GPIO_OUT();
@@ -72,7 +72,7 @@ bool dht11_read(unsigned int* temperature, unsigned int* humidity) {
     struct Response {
         uint8_t HumidityIntegral;
         uint8_t HumidityDecimal;
-        uint8_t TemperatureIntegral;
+        int8_t TemperatureIntegral;
         uint8_t TemperatureDecimal;
         uint8_t Checksum;
     };
@@ -108,6 +108,7 @@ bool dht11_read(unsigned int* temperature, unsigned int* humidity) {
     if (response.Checksum != expected_checksum) {
         DHT11_ERROR("DHT bad checksum\r\n"
             "got: %x, expected: %x \r\n", response.Checksum, expected_checksum);
+        return false;
     }
 
     (*temperature) = response.TemperatureIntegral;

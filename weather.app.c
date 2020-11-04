@@ -9,8 +9,46 @@
 #include <util/delay.h>
 
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include <time.h>
+
+#define RESPONSE_DATA_LENGTH (3)
+
+enum CommandResult {
+    Ok = 0,
+    SensorFail = 1,
+    InvalidCommand = 2
+};
+
+enum CommandResult command_read(uint8_t response[RESPONSE_DATA_LENGTH]) {
+    int8_t temperature = 0;
+    uint8_t humidity = 0;
+
+    if (dht11_read(&temperature, &humidity)) {
+        response[0] = temperature;
+        response[1] = humidity;
+        return Ok;
+    }
+
+    return SensorFail;
+}
+
+enum CommandResult command_hello(uint8_t response[RESPONSE_DATA_LENGTH]) {
+    response[0] = 0xF0;
+    response[1] = 0x14;
+    response[2] = 0x4D;
+    return Ok;
+}
+
+enum CommandResult handle_command(uint8_t command, uint8_t response[RESPONSE_DATA_LENGTH]) {
+    switch (command) {
+        case 0x66: return command_read(response);
+        case 0x10: return command_hello(response);
+    }
+
+    return InvalidCommand;
+}
 
 int main(void) {
 
@@ -44,26 +82,18 @@ int main(void) {
 
     while (1) {
 
-        log_print("Time: %d\r\n", TCNT0);
+        log_print("Wait for command...\r\n");
+
         led_on(read_indicator);
-        log_print("Time2: %d\r\n", TCNT0);
-        log_print("Reading... ");
+        uint8_t command = bt_mlt05_receive();
+        led_off(read_indicator);
 
-        unsigned int temperature = 0;
-        unsigned int humidity = 0;
-        if (dht11_read(&temperature, &humidity)) {
-            char buffer[64];
-            snprintf(buffer, sizeof(buffer), 
-                    "T: %d | H: %d\r\n",
-                    temperature, humidity);
-
-            bt_mlt05_send_string(buffer);
-        }
+        uint8_t response[RESPONSE_DATA_LENGTH + 1] = { 0 };
+        response[0] = (uint8_t)handle_command(command, &response[1]);
+        bt_mlt05_send(response, sizeof(response));
 
         log_print("Sleeping... \r\n");
-        _delay_ms(1000);
-        led_off(read_indicator);
-        _delay_ms(10000);
+        _delay_ms(5000);
     }
 
     return 0;

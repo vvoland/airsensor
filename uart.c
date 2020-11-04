@@ -34,3 +34,24 @@ inline void uart_transmit(const char* string) {
     uart_transmit_string(string);
 }
 
+inline uint8_t uart_receive_byte() {
+    // Wait for non-empty receive buffer
+    while ((UCSR0A & (1 << RXC0)) == 0);
+
+    return UDR0;
+}
+
+inline unsigned int uart_receive_string(char* buffer, unsigned int size) {
+    unsigned int i;
+
+    buffer[size - 1] = '\0';
+    for (i = 0; i < size - 1; i++) {
+        uint8_t byte = uart_receive_byte();
+        buffer[i] = byte;
+        if (byte == '\0') {
+            break;
+        }
+    }
+
+    return i;
+}
