@@ -75,7 +75,8 @@ struct AlphaSensor<P: Peripheral> {
 enum AlphaSensorPollError {
     UnexpectedResponse,
     SensorError,
-    Timeout
+    Timeout,
+    SendFailed
 }
 
 struct AlphaSensorReading {
@@ -108,7 +109,9 @@ impl<P: Peripheral> AlphaSensor<P> {
     }
 
     fn check_hello(peripheral: &P, characteristic: &Characteristic, rx: &mpsc::Receiver<Vec<u8>>) -> bool {
-        peripheral.command(characteristic, &[0x10u8]).expect("Failed to send hello command");
+        if let Err(_) = peripheral.command(characteristic, &[0x10u8]) {
+            return false;
+        }
         match rx.recv_timeout(Duration::from_secs(5)) {
             Ok(data) => {
                 if data.eq(&vec![0x00u8, 0xF0u8, 0x14u8, 0x4Du8]) {
@@ -126,7 +129,9 @@ impl<P: Peripheral> AlphaSensor<P> {
     }
 
     pub fn poll(&self) -> Result<AlphaSensorReading, AlphaSensorPollError> {
-        self.peripheral.command(&self.characteristic, &[0x66u8]).expect("Failed to send command");
+        if let Err(_) = self.peripheral.command(&self.characteristic, &[0x66u8]) {
+            return Err(AlphaSensorPollError::SendFailed);
+        }
         self.data_receiver
             .recv_timeout(Duration::from_secs(5))
             .map_or(Err(AlphaSensorPollError::Timeout), 
@@ -150,7 +155,7 @@ impl<P: Peripheral> AlphaSensor<P> {
 impl<P: Peripheral> Drop for AlphaSensor<P> {
     fn drop(&mut self) {
         println!("Disconnecting dropped sensor {}...", self.peripheral.address());
-        self.peripheral.disconnect().expect("Disconnect failed");
+        let _ = self.peripheral.disconnect();
     }
 }
 
@@ -294,15 +299,27 @@ async fn main() -> std::io::Result<()> {
         };
         master.pop_and_inspect();
         let dt = SystemTime::now().duration_since(prev).unwrap();
-        if dt.as_secs() > 60 {
+        if dt.as_secs() >= 10 {
             prev = SystemTime::now();
             let mut sensors = master.sensors.lock().expect("Poisoned mutex");
-            for sensor in sensors.iter_mut() {
+            sensors.retain(|sensor| {
                 match sensor.poll() {
-                    Ok(reading) => println!("Temperature: {}C, Humidity: {}%", reading.temperature, reading.humidity),
-                    Err(err) => println!("Could not poll sensor data! {:?}", err)
+                    Ok(reading) => {
+                        println!("Temperature: {}C, Humidity: {}%", reading.temperature, reading.humidity);
+                        true
+                    }
+                    Err(AlphaSensorPollError::SendFailed) => {
+                        let mut to_inspect = master.to_inspect.lock().unwrap();
+                        to_inspect.push(sensor.peripheral.clone());
+                        println!("Could not communicate with sensor");
+                        false
+                    }
+                    Err(err) => {
+                        println!("Could not poll sensor data! {:?}", err);
+                        true
+                    }
                 }
-            }
+            });
         }
     })).await;
 
