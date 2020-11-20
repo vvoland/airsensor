@@ -1,4 +1,6 @@
 extern crate btleplug;
+#[macro_use] extern crate diesel;
+#[macro_use] extern crate diesel_migrations;
 
 use btleplug::api::{Central, CentralEvent, Peripheral, BDAddr, UUID, Characteristic, ValueNotification};
 #[cfg(target_os = "linux")]
@@ -29,7 +31,11 @@ use std::cell::RefCell;
 use std::sync::atomic::{Ordering, AtomicBool};
 use std::thread;
 use std::time::Duration;
+use chrono::prelude::*;
+use chrono::{NaiveDateTime};
 use serde::{Deserialize, Serialize};
+use diesel::prelude::*;
+use diesel::r2d2;
 
 
 #[get("/")]
@@ -234,19 +240,22 @@ impl<P: Peripheral> BleMaster<P> {
 
 }
 
-fn build_http() -> actix_web::dev::Server {
+fn build_http<M: r2d2::ManageConnection>(
+    db_pool: r2d2::Pool<M>) 
+-> actix_web::dev::Server {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
         let sys = System::new("http-server");
 
-        let srv = HttpServer::new(|| {
+        let srv = HttpServer::new(move || {
                 let sensors_scope: Scope = web::scope("/api/sensors")
                     .service(sensors_list);
 
                 App::new()
                     .service(status)
                     .service(sensors_scope)
+                    .data(db_pool.clone())
             })
             .bind("0.0.0.0:8000")?
             .shutdown_timeout(60)
@@ -259,13 +268,85 @@ fn build_http() -> actix_web::dev::Server {
     rx.recv().unwrap()
 }
 
+diesel_migrations::embed_migrations!("./migrations/");
+
+mod schema {
+    table! {
+        Sensors(id) {
+            id -> Integer,
+            address -> Text,
+            name -> Nullable<Text>,
+        }
+    }
+
+    table! {
+        Readings(id) {
+            id -> Integer,
+            sensor -> Integer,
+            timestamp -> Timestamp,
+            kind -> Char,
+            value -> Integer,
+        }
+    }
+
+    use super::*;
+
+    #[derive(Serialize, Debug, Clone, Queryable)]
+    pub struct ReadingDTO {
+       pub id: i32,
+       pub sensor: i32,
+       pub timestamp: NaiveDateTime,
+       pub kind: char,
+       pub value: i32
+    }
+
+    #[derive(Debug, Clone, Insertable)]
+    #[table_name="Readings"]
+    pub struct AddReadingDTO {
+       pub sensor: i32,
+       pub timestamp: NaiveDateTime,
+       pub kind: &'static str,
+       pub value: i32
+    }
+
+    #[derive(Serialize, Debug, Clone, Queryable)]
+    pub struct SensorDTO {
+       pub id: i32,
+       pub address: String,
+       pub name: Option<String>
+    }
+
+    #[derive(Debug, Clone, Insertable)]
+    #[table_name="Sensors"]
+    pub struct AddSensorDTO {
+       pub name: Option<String>,
+       pub address: String
+    }
+}
+
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<(), String> {
 
-    let srv = build_http();
-    
+    let db_manager = r2d2::ConnectionManager::<SqliteConnection>::new("./database.sqlite3");
+    let db_pool = r2d2::Pool::builder()
+        .build(db_manager)
+        .expect("Could not create database pool");
+    println!("Database connected");
 
+    {
+        let migration_connection = db_pool.get().expect("Failed to get database connection for migrations");
+        if let Err(err) = embedded_migrations::run_with_output(&migration_connection, &mut std::io::stdout()) {
+            println!("Migration failed: {}", err);
+            return Err(String::from("Migration failed"));
+        }
+
+
+    }
+
+    println!("Database initialized");
+
+    let srv = build_http(db_pool.clone());
     let manager = Manager::new().unwrap();
     let central = get_central(&manager);
 
@@ -293,6 +374,10 @@ async fn main() -> std::io::Result<()> {
                 CentralEvent::DeviceLost(addr) => {
                     master.on_lost(addr);
                 },
+                CentralEvent::DeviceDisconnected(_) => {
+                    println!("Rescan after disconnect");
+                    central.start_scan().expect("Failed to start scan");
+                },
                 _ => {}
             },
             _ => {}
@@ -306,6 +391,58 @@ async fn main() -> std::io::Result<()> {
                 match sensor.poll() {
                     Ok(reading) => {
                         println!("Temperature: {}C, Humidity: {}%", reading.temperature, reading.humidity);
+
+                        let table = schema::Sensors::table;
+                        let properties = sensor.peripheral.properties();
+                        let address_str = properties.address.to_string();
+
+                        let find_sensor = |addr| {
+                            table
+                                .filter(schema::Sensors::dsl::address.eq(addr))
+                                .first::<schema::SensorDTO>(&db_pool.get().expect("Could not obtain database connection"))
+                        };
+
+                        let first_sensor_query = find_sensor(&address_str);
+
+                        let sensor_id = match first_sensor_query {
+                            Ok(sensor_dto) => sensor_dto.id,
+                            Err(_) => {
+                                diesel::insert_into(table)
+                                    .values(schema::AddSensorDTO {
+                                        name: properties.local_name,
+                                        address: properties.address.to_string()
+                                    })
+                                    .execute(&db_pool.get().expect("Could not obtain database connection"))
+                                    .expect("Failed to insert sensor");
+                                find_sensor(&address_str)
+                                    .unwrap()
+                                    .id
+                            }
+                        };
+
+
+                        let now = Utc::now().naive_utc();
+
+                        diesel::insert_into(schema::Readings::table)
+                            .values(schema::AddReadingDTO {
+                                sensor: sensor_id,
+                                timestamp: now,
+                                kind: "T",
+                                value: reading.temperature as i32
+                            })
+                            .execute(&db_pool.get().expect("Could not obtain database connection"))
+                            .expect("Failed to insert temperature reading");
+
+                        diesel::insert_into(schema::Readings::table)
+                            .values(schema::AddReadingDTO {
+                                sensor: sensor_id,
+                                timestamp: now,
+                                kind: "H",
+                                value: reading.humidity as i32
+                            })
+                            .execute(&db_pool.get().expect("Could not obtain database connection"))
+                            .expect("Failed to insert humidity reading");
+
                         true
                     }
                     Err(AlphaSensorPollError::SendFailed) => {

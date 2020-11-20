@@ -12,3 +12,6 @@ actix-web = "3"
 serde = "1.0"
 signal-hook = "0.1.13"
 btleplug = "0.5.4"
+diesel = { version = "1.4.5", features = ["sqlite", "r2d2", "chrono"] }
+diesel_migrations = "1.4"
+chrono = { version = "0.4", features = ["serde"] }
