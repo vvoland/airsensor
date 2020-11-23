@@ -1,0 +1,55 @@
+body {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    background-color: #fff;
+    color: #000;
+    font-family: Lato;
+}
+
+h1 {
+    color: #000;
+    width: 100%;
+    font-size: 3rem;
+    margin-bottom: 12px;
+    margin-top: 12px;
+    text-align: center;
+}
+
+#sensors-container {
+    display: flex;
+    flex-direction: row;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.card {
+    border-radius: 8px;
+    background-color: SteelBlue;
+    box-shadow: 6px 6px rgba(0.0, 0.0, 0.0, 0.1);
+    color: #fff;
+    margin: 8px;
+    padding: 16px;
+}
+
+.card p {
+    margin: 0;
+}
+
+.sensor-reading-kind {
+    font-size: 1.2rem;
+}
+
+.sensor-reading-value {
+    font-size: 1.2rem;
+    font-align: right;
+}
+
+.card-title {
+    font-weight: bold;
+    text-align: left;
+    font-size: 1.5rem;
+    margin-bottom: 12px;
+}
