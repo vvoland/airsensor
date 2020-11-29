@@ -39,23 +39,77 @@ use diesel::r2d2;
 mod alpha_sensor;
 use alpha_sensor::*;
 
+type DbPool = r2d2::Pool<r2d2::ConnectionManager<SqliteConnection>>;
 
-#[get("/")]
+#[get("/status")]
 async fn status() -> impl Responder {
     HttpResponse::Ok().body("Server is up and running!")
 }
 
-#[derive(Serialize, Deserialize)]
-struct SensorsList {
-    pub sensors: Vec::<String>
+async fn not_found() -> HttpResponse {
+    HttpResponse::NotFound().body("<html><head><title>Not found</title><body><h1>404</h1></html>")
 }
 
 #[get("/list")]
-async fn sensors_list()  -> HttpResponse {
-    HttpResponse::Ok()
-        .json(SensorsList {
-            sensors: Vec::<String>::new()
-        })
+async fn sensors_list(pool: web::Data<DbPool>)  -> HttpResponse {
+    pool.get()
+        .map_or(HttpResponse::ServiceUnavailable().body("Database connection failed"),
+            |conn| {
+                schema::Sensors::table
+                    .load::<schema::SensorDTO>(&conn)
+                    .map_or(HttpResponse::InternalServerError().body("Sensors query failed"), |sensors| {
+                        HttpResponse::Ok().json(&sensors)
+                    })
+            }
+        )
+}
+
+#[get("/{id}/latest/{type}")]
+async fn sensor_current_reading(request: web::Path<(i32, String)>, pool: web::Data<DbPool>)  -> HttpResponse {
+    pool.get()
+        .map_or(HttpResponse::ServiceUnavailable().body("Database connection failed"),
+            |conn| {
+                schema::Readings::table
+                    .filter(schema::Readings::sensor.eq(request.0.0))
+                    .filter(schema::Readings::kind.eq(request.0.1))
+                    .order_by(schema::Readings::id.desc())
+                    .first::<schema::ReadingDTO>(&conn)
+                    .map_or(HttpResponse::InternalServerError().body("Latest query failed"), |latest| {
+                        HttpResponse::Ok().json(latest)
+                    })
+            }
+        )
+}
+
+#[get("/{id}/readings")]
+async fn sensor_readings(request: web::Path<i32>, pool: web::Data<DbPool>)  -> HttpResponse {
+    pool.get()
+        .map_or(HttpResponse::ServiceUnavailable().body("Database connection failed"),
+            |conn| {
+                schema::Readings::table
+                    .filter(schema::Readings::sensor.eq(request.0))
+                    .load::<schema::ReadingDTO>(&conn)
+                    .map_or(HttpResponse::InternalServerError().body("Readings query failed"), |latest| {
+                        HttpResponse::Ok().json(latest)
+                    })
+            }
+        )
+}
+
+#[get("/{id}/readings/after/{timestamp}")]
+async fn sensor_readings_after_time(request: web::Path<(i32, chrono::NaiveDateTime)>, pool: web::Data<DbPool>)  -> HttpResponse {
+    pool.get()
+        .map_or(HttpResponse::ServiceUnavailable().body("Database connection failed"),
+            |conn| {
+                schema::Readings::table
+                    .filter(schema::Readings::sensor.eq(request.0.0))
+                    .filter(schema::Readings::timestamp.gt(request.0.1))
+                    .load::<schema::ReadingDTO>(&conn)
+                    .map_or(HttpResponse::InternalServerError().body("Readings query failed"), |latest| {
+                        HttpResponse::Ok().json(latest)
+                    })
+            }
+        )
 }
 
 async fn wait_for_keyboard_interrupt(mut wait_action: Box<dyn FnMut()>) -> () {
@@ -120,14 +174,11 @@ impl<P: Peripheral> BleMaster<P> {
                 let _ = peripheral.disconnect();
             }
         }
-
     }
 
 }
 
-fn build_http<M: r2d2::ManageConnection>(
-    db_pool: r2d2::Pool<M>) 
--> actix_web::dev::Server {
+fn build_http(db_pool: DbPool) -> actix_web::dev::Server {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
@@ -135,14 +186,24 @@ fn build_http<M: r2d2::ManageConnection>(
 
         let srv = HttpServer::new(move || {
                 let sensors_scope: Scope = web::scope("/api/sensors")
-                    .service(sensors_list);
+                    .service(sensors_list)
+                    .service(sensor_readings)
+                    .service(sensor_readings_after_time)
+                    .service(sensor_current_reading)
+                    .default_service(web::route().to(|| HttpResponse::NotFound()));
+
+                let frontend_scope: Scope = web::scope("/")
+                    .service(actix_files::Files::new("", "./app/")
+                        .index_file("index.html")
+                        .default_handler(web::route().to(not_found)));
 
                 App::new()
                     .service(status)
                     .service(sensors_scope)
+                    .service(frontend_scope)
                     .data(db_pool.clone())
             })
-            .bind("0.0.0.0:8000")?
+            .bind("0.0.0.0:80")?
             .shutdown_timeout(60)
             .run();
 
@@ -181,7 +242,7 @@ mod schema {
        pub id: i32,
        pub sensor: i32,
        pub timestamp: NaiveDateTime,
-       pub kind: char,
+       pub kind: String,
        pub value: i32
     }
 
@@ -213,10 +274,11 @@ mod schema {
 #[actix_web::main]
 async fn main() -> Result<(), String> {
 
-    let db_manager = r2d2::ConnectionManager::<SqliteConnection>::new("./database.sqlite3");
+    let db_manager = r2d2::ConnectionManager::<SqliteConnection>::new("database.sqlite3");
     let db_pool = r2d2::Pool::builder()
         .build(db_manager)
         .expect("Could not create database pool");
+
     println!("Database connected");
 
     {
@@ -225,8 +287,6 @@ async fn main() -> Result<(), String> {
             println!("Migration failed: {}", err);
             return Err(String::from("Migration failed"));
         }
-
-
     }
 
     println!("Database initialized");
@@ -269,7 +329,7 @@ async fn main() -> Result<(), String> {
         };
         master.pop_and_inspect();
         let dt = SystemTime::now().duration_since(prev).unwrap();
-        if dt.as_secs() >= 10 {
+        if dt.as_secs() >= 30 {
             prev = SystemTime::now();
             let mut sensors = master.sensors.lock().expect("Poisoned mutex");
             sensors.retain(|sensor| {
