@@ -9,9 +9,10 @@ edition = "2018"
 [dependencies]
 async-std = "1.6.2"
 actix-web = "3"
+actix-files = "0.4.0"
 serde = "1.0"
 signal-hook = "0.1.13"
 btleplug = "0.5.4"
-diesel = { version = "1.4.5", features = ["sqlite", "r2d2", "chrono"] }
+diesel = { version = "1.4.5", features = ["sqlite", "r2d2", "chrono", "numeric", "default"] }
 diesel_migrations = "1.4"
 chrono = { version = "0.4", features = ["serde"] }

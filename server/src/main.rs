@@ -20,6 +20,8 @@ fn get_central(manager: &Manager) -> Adapter {
 fn get_central(manager: &Manager) -> ConnectedAdapter {
     let adapters = manager.adapters().unwrap();
     let adapter = adapters.into_iter().nth(0).expect("No BLE adapters");
+    manager.down(&adapter).expect("Failed to put adapter down");
+    manager.up(&adapter).expect("Failed to put adapter up");
     adapter.connect().unwrap()
 }
 
@@ -41,6 +43,143 @@ use alpha_sensor::*;
 
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<SqliteConnection>>;
 
+#[derive(Debug, Clone)]
+pub enum DatabaseError {
+    Busy,
+    NotFound,
+    Conflict,
+    Other(String)
+}
+
+pub trait Database {
+    fn create_sensor_if_not_exists(&self, sensor: &Sensor) -> Result<bool, DatabaseError>;
+    fn add_reading(&self,
+        sensor: &Sensor,
+        timestamp: NaiveDateTime,
+        reading: SensorReading)
+    -> Result<(), DatabaseError>;
+    fn get_readings(&self, sensor: &Sensor) -> Result<Vec<SensorReading>, DatabaseError>;
+}
+
+#[derive(Clone)]
+pub struct SqliteDatabase {
+    pool: DbPool
+}
+
+impl SqliteDatabase {
+    pub fn new(path: &'static str) -> Self {
+        let db_manager = r2d2::ConnectionManager::<SqliteConnection>::new(path);
+        let db_pool = r2d2::Pool::builder()
+            .build(db_manager)
+            .expect("Could not create database pool");
+
+        println!("Database connected");
+        {
+            let migration_connection = db_pool.get().expect("Failed to get database connection for migrations");
+            embedded_migrations::run_with_output(&migration_connection, &mut std::io::stdout())
+                .expect("Migration failed");
+        }
+
+        SqliteDatabase {
+            pool: db_pool
+        }
+
+    }
+
+    fn find_sensor(&self, addr: BDAddr) -> Result<schema::SensorDTO, diesel::result::Error> {
+        schema::Sensors::table
+            .filter(schema::Sensors::dsl::address.eq(addr.to_string()))
+            .first::<schema::SensorDTO>(&self.pool.get().expect("Could not obtain database connection"))
+    }
+
+    fn find_sensor_map_err(&self, addr: BDAddr) -> Result<schema::SensorDTO, DatabaseError> {
+        self.find_sensor(addr)
+            .map_err(|err| match err {
+                diesel::result::Error::NotFound => DatabaseError::NotFound,
+                _ => DatabaseError::Other(err.to_string())
+            })
+    }
+
+    fn to_reading(&self, reading: &schema::ReadingDTO) -> SensorReading {
+        match reading.kind.as_ref() {
+            "T" => SensorReading::Temperature(reading.value),
+            "H" => SensorReading::Humidity(reading.value as u8),
+            _ => SensorReading::Unknown
+        }
+    }
+}
+
+impl Database for SqliteDatabase {
+    fn create_sensor_if_not_exists(&self, sensor: &Sensor) -> Result<bool, DatabaseError> {
+        let table = schema::Sensors::table;
+        match self.find_sensor(sensor.address) {
+            Ok(_) => Ok(false),
+            Err(diesel::result::Error::NotFound) => {
+                match self.pool.get() {
+                    Ok(conn) =>
+                        diesel::insert_into(table)
+                            .values(schema::AddSensorDTO {
+                                name: sensor.name.clone(),
+                                address: sensor.address.to_string()
+                            })
+                            .execute(&conn)
+                            .map(|_| true)
+                            .map_err(|err| DatabaseError::Other(err.to_string())),
+                    Err(_) => Err(DatabaseError::Busy)
+                }
+            }
+            Err(err) => Err(DatabaseError::Other(err.to_string()))
+        }
+    }
+
+    fn add_reading(&self,
+        sensor: &Sensor,
+        timestamp: NaiveDateTime,
+        reading: SensorReading)
+    -> Result<(), DatabaseError> {
+
+        let (kind, value) = match reading {
+            SensorReading::Temperature(temperature) => ("T", temperature as i32),
+            SensorReading::Humidity(humidity) => ("H", humidity as i32),
+            SensorReading::Unknown => panic!("An attempt to insert unknown sensor reading")
+        };
+
+        self.find_sensor_map_err(sensor.address)
+            .and_then(|dto| {
+                diesel::insert_into(schema::Readings::table)
+                    .values(schema::AddReadingDTO {
+                        sensor: dto.id,
+                        timestamp, kind, value
+                    })
+                    .execute(&self.pool.get().expect("Could not obtain database connection"))
+                    .map(|inserts| assert!(inserts == 1))
+                .map_err(|err| DatabaseError::Other(err.to_string()))
+            })
+    }
+
+    fn get_readings(&self, sensor: &Sensor) -> Result<Vec<SensorReading>, DatabaseError> {
+        self.find_sensor_map_err(sensor.address)
+            .and_then(|dto| {
+                match self.pool.get() {
+                    Ok(conn) => {
+                        schema::Readings::table
+                            .filter(schema::Readings::sensor.eq(dto.id))
+                            .load::<schema::ReadingDTO>(&conn)
+                            .map_err(|err| DatabaseError::Other(err.to_string()))
+                    },
+                    Err(_) => Err(DatabaseError::Busy)
+                }
+            })
+            .map(|readings| {
+                readings
+                    .iter()
+                    .map(|reading| self.to_reading(&reading))
+                    .collect()
+            })
+    }
+}
+
+
 #[get("/status")]
 async fn status() -> impl Responder {
     HttpResponse::Ok().body("Server is up and running!")
@@ -50,8 +189,9 @@ async fn not_found() -> HttpResponse {
     HttpResponse::NotFound().body("<html><head><title>Not found</title><body><h1>404</h1></html>")
 }
 
+/*
 #[get("/list")]
-async fn sensors_list(pool: web::Data<DbPool>)  -> HttpResponse {
+async fn sensors_list<D: Database>(pool: web::Data<D>)  -> HttpResponse {
     pool.get()
         .map_or(HttpResponse::ServiceUnavailable().body("Database connection failed"),
             |conn| {
@@ -63,6 +203,7 @@ async fn sensors_list(pool: web::Data<DbPool>)  -> HttpResponse {
             }
         )
 }
+*/
 
 #[get("/{id}/latest/{type}")]
 async fn sensor_current_reading(request: web::Path<(i32, String)>, pool: web::Data<DbPool>)  -> HttpResponse {
@@ -81,7 +222,7 @@ async fn sensor_current_reading(request: web::Path<(i32, String)>, pool: web::Da
         )
 }
 
-#[get("/{id}/readings")]
+#[get("/{name}/readings")]
 async fn sensor_readings(request: web::Path<i32>, pool: web::Data<DbPool>)  -> HttpResponse {
     pool.get()
         .map_or(HttpResponse::ServiceUnavailable().body("Database connection failed"),
@@ -121,16 +262,33 @@ async fn wait_for_keyboard_interrupt(mut wait_action: Box<dyn FnMut()>) -> () {
     }
 }
 
-struct BleMaster<P: Peripheral> {
-    to_inspect: Mutex<Vec<P>>,
-    sensors: Mutex<Vec<AlphaSensor<P>>>
-
+pub enum SensorFamily {
+    Alpha
 }
 
-impl<P: Peripheral> BleMaster<P> {
+pub enum SensorReading {
+    Temperature(i32),
+    Humidity(u8),
+    Unknown
+}
 
-    pub fn new() -> Self {
-        BleMaster::<P> {
+pub struct Sensor {
+    pub family: SensorFamily,
+    pub address: BDAddr,
+    pub name: Option<String>
+}
+
+struct BleMaster<P: Peripheral, D: Database> {
+    to_inspect: Mutex<Vec<P>>,
+    sensors: Mutex<Vec<AlphaSensor<P>>>,
+    db: D
+}
+
+impl<P: Peripheral, D: Database> BleMaster<P, D> {
+
+    pub fn new(db: D) -> Self {
+        BleMaster::<P, D> {
+            db,
             to_inspect: Mutex::new(Vec::<P>::new()),
             sensors: Mutex::new(Vec::<AlphaSensor<P>>::new())
         }
@@ -149,6 +307,7 @@ impl<P: Peripheral> BleMaster<P> {
 
     pub fn on_discovered(&mut self, peripheral: P) {
         if peripheral.properties().local_name.map_or(true, |name| !name.contains("Weather")) {
+            println!("Ignoring {}", peripheral.address());
             return
         }
 
@@ -165,6 +324,7 @@ impl<P: Peripheral> BleMaster<P> {
     }
 
     pub fn inspect(&self, peripheral: P) {
+        println!("Inspecting {}...", peripheral.address());
         if let Some(characteristic) = AlphaSensor::inspect(&peripheral) {
             println!("Found characteristics in {}", peripheral.address());
             let mut sensors = self.sensors.lock().expect("Poisoned mutex");
@@ -176,9 +336,47 @@ impl<P: Peripheral> BleMaster<P> {
         }
     }
 
+    pub fn try_poll_sensor(&self, sensor: &AlphaSensor<P>) -> bool {
+        match sensor.poll() {
+            Ok(reading) => {
+                let now = Utc::now().naive_utc();
+                let properties = sensor.peripheral.properties();
+                let name_str = match properties.local_name.clone() {
+                    Some(s) => s,
+                    None => "???".to_string()
+                };
+                println!("[{}] Temperature: {}C, Humidity: {}%", name_str, reading.temperature, reading.humidity);
+
+                let sensor_data = Sensor {
+                    family: SensorFamily::Alpha,
+                    address: properties.address,
+                    name: properties.local_name
+                };
+
+                self.db.create_sensor_if_not_exists(&sensor_data)
+                    .expect("Could not ensure that the sensor exists in the database");
+                self.db.add_reading(&sensor_data, now, SensorReading::Temperature(reading.temperature as i32))
+                    .expect("Could not insert temperature reading");
+                self.db.add_reading(&sensor_data, now, SensorReading::Humidity(reading.humidity))
+                    .expect("Could not insert temperature reading");
+
+                true
+            }
+            Err(AlphaSensorPollError::SendFailed) => {
+                let mut to_inspect = self.to_inspect.lock().unwrap();
+                to_inspect.push(sensor.peripheral.clone());
+                println!("Could not communicate with sensor");
+                false
+            }
+            Err(err) => {
+                println!("Could not poll sensor data! {:?}", err);
+                true
+            }
+        }
+    }
 }
 
-fn build_http(db_pool: DbPool) -> actix_web::dev::Server {
+fn build_http<D: Database + Send + Clone + 'static>(db: D) -> actix_web::dev::Server {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
@@ -186,7 +384,7 @@ fn build_http(db_pool: DbPool) -> actix_web::dev::Server {
 
         let srv = HttpServer::new(move || {
                 let sensors_scope: Scope = web::scope("/api/sensors")
-                    .service(sensors_list)
+                    //.service(sensors_list)
                     .service(sensor_readings)
                     .service(sensor_readings_after_time)
                     .service(sensor_current_reading)
@@ -201,7 +399,7 @@ fn build_http(db_pool: DbPool) -> actix_web::dev::Server {
                     .service(status)
                     .service(sensors_scope)
                     .service(frontend_scope)
-                    .data(db_pool.clone())
+                    .data(db.clone())
             })
             .bind("0.0.0.0:80")?
             .shutdown_timeout(60)
@@ -274,36 +472,25 @@ mod schema {
 #[actix_web::main]
 async fn main() -> Result<(), String> {
 
-    let db_manager = r2d2::ConnectionManager::<SqliteConnection>::new("database.sqlite3");
-    let db_pool = r2d2::Pool::builder()
-        .build(db_manager)
-        .expect("Could not create database pool");
+    let database = SqliteDatabase::new("./database.sqlite3");
 
-    println!("Database connected");
-
-    {
-        let migration_connection = db_pool.get().expect("Failed to get database connection for migrations");
-        if let Err(err) = embedded_migrations::run_with_output(&migration_connection, &mut std::io::stdout()) {
-            println!("Migration failed: {}", err);
-            return Err(String::from("Migration failed"));
-        }
-    }
-
-    println!("Database initialized");
-
-    let srv = build_http(db_pool.clone());
+    let srv = build_http(database.clone());
     let manager = Manager::new().unwrap();
     let central = get_central(&manager);
 
+    println!("Starting BLE scan...");
     central.start_scan().expect("Unable to start scan");
+    println!("Scan started");
 
     thread::sleep(Duration::from_secs(2));
 
+    println!("Getting the event receiver");
     let events = central.event_receiver().unwrap();
-    let mut master = BleMaster::new();
+    let mut master = BleMaster::new(database);
 
     let mut prev = SystemTime::now();
 
+    println!("Running the app...");
     wait_for_keyboard_interrupt(Box::new(move || {
         match events.recv_timeout(Duration::from_secs(1)) {
             Ok(event) => match event {
@@ -332,76 +519,7 @@ async fn main() -> Result<(), String> {
         if dt.as_secs() >= 30 {
             prev = SystemTime::now();
             let mut sensors = master.sensors.lock().expect("Poisoned mutex");
-            sensors.retain(|sensor| {
-                match sensor.poll() {
-                    Ok(reading) => {
-                        println!("Temperature: {}C, Humidity: {}%", reading.temperature, reading.humidity);
-
-                        let table = schema::Sensors::table;
-                        let properties = sensor.peripheral.properties();
-                        let address_str = properties.address.to_string();
-
-                        let find_sensor = |addr| {
-                            table
-                                .filter(schema::Sensors::dsl::address.eq(addr))
-                                .first::<schema::SensorDTO>(&db_pool.get().expect("Could not obtain database connection"))
-                        };
-
-                        let first_sensor_query = find_sensor(&address_str);
-
-                        let sensor_id = match first_sensor_query {
-                            Ok(sensor_dto) => sensor_dto.id,
-                            Err(_) => {
-                                diesel::insert_into(table)
-                                    .values(schema::AddSensorDTO {
-                                        name: properties.local_name,
-                                        address: properties.address.to_string()
-                                    })
-                                    .execute(&db_pool.get().expect("Could not obtain database connection"))
-                                    .expect("Failed to insert sensor");
-                                find_sensor(&address_str)
-                                    .unwrap()
-                                    .id
-                            }
-                        };
-
-
-                        let now = Utc::now().naive_utc();
-
-                        diesel::insert_into(schema::Readings::table)
-                            .values(schema::AddReadingDTO {
-                                sensor: sensor_id,
-                                timestamp: now,
-                                kind: "T",
-                                value: reading.temperature as i32
-                            })
-                            .execute(&db_pool.get().expect("Could not obtain database connection"))
-                            .expect("Failed to insert temperature reading");
-
-                        diesel::insert_into(schema::Readings::table)
-                            .values(schema::AddReadingDTO {
-                                sensor: sensor_id,
-                                timestamp: now,
-                                kind: "H",
-                                value: reading.humidity as i32
-                            })
-                            .execute(&db_pool.get().expect("Could not obtain database connection"))
-                            .expect("Failed to insert humidity reading");
-
-                        true
-                    }
-                    Err(AlphaSensorPollError::SendFailed) => {
-                        let mut to_inspect = master.to_inspect.lock().unwrap();
-                        to_inspect.push(sensor.peripheral.clone());
-                        println!("Could not communicate with sensor");
-                        false
-                    }
-                    Err(err) => {
-                        println!("Could not poll sensor data! {:?}", err);
-                        true
-                    }
-                }
-            });
+            sensors.retain(|sensor| master.try_poll_sensor(sensor));
         }
     })).await;
 

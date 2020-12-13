@@ -6,5 +6,5 @@ server:
 	$(STRIP)  $(APP)
 
 upload:
-	rsync -avPz target/armv7-unknown-linux-gnueabihf/debug/server pi@raspberrypi.local:~/weather
+	rsync -avPz target/armv7-unknown-linux-gnueabihf/debug/server pi@raspberrypi.lan:~/weather
 
