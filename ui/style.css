@@ -1,16 +1,33 @@
-body {
+* {
     box-sizing: border-box;
     padding: 0;
     margin: 0;
+}
+
+body {
     background-color: #fff;
     color: #000;
-    font-family: Lato;
+    font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, Droid Sans, Arial, sans-serif;
+}
+
+header {
+    width: 100%;
+    margin: 0;
+    margin-bottom: 8px;
+    padding: 4px;
+    color: white;
+    font-weight: 700;
+    background-color: teal;
+}
+
+header h1 {
+    position: relative;
+    text-align: left;
 }
 
 h1 {
-    color: #000;
     width: 100%;
-    font-size: 3rem;
+    font-size: 2.4rem;
     margin-bottom: 12px;
     margin-top: 12px;
     text-align: center;
@@ -27,9 +44,11 @@ h1 {
 
 .card {
     border-radius: 8px;
-    background-color: SteelBlue;
+    background-color: white;
+    border-style: solid;
+    border-color: #444;
     box-shadow: 6px 6px rgba(0.0, 0.0, 0.0, 0.1);
-    color: #fff;
+    color: #000;
     margin: 8px;
     padding: 16px;
 }
@@ -47,9 +66,40 @@ h1 {
     font-align: right;
 }
 
+.sensor-status-online:before {
+    content: "●";
+    color: green;
+}
+
+.sensor-status-offline:before {
+    content: "●";
+    color: red;
+}
+
 .card-title {
     font-weight: bold;
     text-align: left;
     font-size: 1.5rem;
     margin-bottom: 12px;
+}
+
+@media not screen and (max-width: 800px) {
+    .centered {
+        width: 800px !important;
+        margin-left: calc(50% - 400px);
+    }
+
+}
+
+@media screen and (max-width: 800px) {
+    header h1 {
+        width: 100%;
+        position: relative;
+        padding-left: 16px;
+        text-align: left;
+    }
+
+    .card {
+        width: 95%;
+    }
 }

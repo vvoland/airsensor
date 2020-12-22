@@ -1,3 +1,5 @@
+//import * as d3 from "d3";
+
 enum ReadingKind {
     Temperature = "T",
     Humidity = "H"
@@ -65,9 +67,11 @@ class PercentageHumidity implements SensorReading {
 class SensorCardRenderer {
     private readings: Map<ReadingKind, SensorReading> = new Map();
     private name: string;
+    private online: boolean;
 
-    constructor(name: string) {
+    constructor(name: string, online: boolean) {
         this.name = name;
+        this.online = online;
     }
 
     with(reading: SensorReading) {
@@ -79,8 +83,14 @@ class SensorCardRenderer {
         var result = `
             <div class="card">
                 <div class="card-title">
-                    ${this.name}
-                </div>`;
+                     ${this.name}
+        `;
+
+        let status_class = "sensor-status-" + (this.online ? "online" : "offline");
+        result += `
+                <span class="${status_class}"></span>
+                </div>
+        `;
 
         this.readings.forEach((reading, kind) => {
             let value = reading.render();
@@ -100,17 +110,39 @@ class SensorCardRenderer {
     }
 }
 
-function refresh() {
+async function fetch_latest(sensor_id: Number, kind: ReadingKind): Promise<number> {
+    return await fetch(`http://${window.location.host}/api/sensors/${sensor_id}/latest/${kind}`)
+        .then(response => response.json())
+        .catch(error => {
+            console.log(`Failed to get latest ${kind} reading for sensor ${sensor_id}`);
+            return {"value": 0};
+        })
+        .then(data => data.value);
+}
+
+async function fetch_status(sensor_id: Number): Promise<boolean> {
+    return await fetch(`http://${window.location.host}/api/sensors/${sensor_id}`)
+        .then(response => response.json())
+        .catch(error => {
+            console.log(`Failed to get status of sensor ${sensor_id}`);
+            return {"status": "Offline"};
+        })
+        .then(data => data.status)
+        .then(status => {
+            return status == "Online" ? true : false;
+        });
+}
+
+async function refresh() {
     console.log("Refresh!");
-    document.getElementById("sensors-container").innerHTML = new SensorCardRenderer("Salon")
-        .with(new CelsiusTemperature(25))
-        .with(new PercentageHumidity(57))
+    let temperature = await fetch_latest(1, ReadingKind.Temperature);
+    let humidity = await fetch_latest(1, ReadingKind.Humidity);
+    let online = await fetch_status(1);
+
+    document.getElementById("sensors-container").innerHTML = new SensorCardRenderer("Salon", online)
+        .with(new CelsiusTemperature(temperature))
+        .with(new PercentageHumidity(humidity))
         .render(new DummyLocalization());
-    document.getElementById("sensors-container").innerHTML += new SensorCardRenderer("Kitchen")
-        .with(new CelsiusTemperature(28))
-        .with(new PercentageHumidity(77))
-        .render(new DummyLocalization());
-    fetch("https://woland.xyz");
 }
 
 

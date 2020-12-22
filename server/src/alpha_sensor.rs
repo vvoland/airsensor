@@ -91,7 +91,7 @@ impl<P: Peripheral> AlphaSensor<P> {
                 if data.eq(&vec![0x00u8, 0xF0u8, 0x14u8, 0x4Du8]) {
                     true
                 } else {
-                    println!("Hello data did not match!");
+                    println!("Hello data did not match! {:?}", data);
                     false
                 }
             }
