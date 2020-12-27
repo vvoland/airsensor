@@ -396,7 +396,7 @@ impl serde::Serialize for TimestampedSensorReading {
                 state.serialize_field("value", &temperature)?;
             },
             SensorReading::Humidity(humidity) => {
-                state.serialize_field("kind", "T")?;
+                state.serialize_field("kind", "H")?;
                 state.serialize_field("value", &humidity)?;
             },
             SensorReading::Unknown => {
