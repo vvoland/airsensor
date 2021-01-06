@@ -1,0 +1,10 @@
+{
+    "name": "weather-webui",
+    "version": "1.0.0",
+    "dependencies": {
+        "@types/chart.js": "^2.9.29",
+        "@types/d3": "^6.2.0",
+        "chart.js": "^2.9.4",
+        "d3": "^6.3.1"
+    }
+}
