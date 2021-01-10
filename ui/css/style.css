@@ -5,7 +5,7 @@
 }
 
 body {
-    background-color: #fff;
+    background-color: #eee;
     color: #000;
     font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, Droid Sans, Arial, sans-serif;
 }
@@ -47,12 +47,13 @@ h1 {
     border-radius: 8px;
     background-color: white;
     border-style: solid;
-    border-color: #444;
+    border-width: 4px;
+    border-color: #888;
     box-shadow: 6px 6px rgba(0.0, 0.0, 0.0, 0.1);
     color: #000;
     margin: 8px;
     padding: 16px;
-    width: 100%;
+    width: auto;
 }
 
 .card p {
@@ -65,7 +66,7 @@ h1 {
 
 .sensor-reading-value {
     font-size: 1.2rem;
-    font-align: right;
+    text-align: right;
 }
 
 .sensor-status-online:before {
@@ -78,11 +79,26 @@ h1 {
     color: red;
 }
 
+.sensor-content-readings {
+    list-style: none;
+    text-align: center;
+}
+
 .card-title {
     font-weight: bold;
-    text-align: left;
+    text-align: center;
     font-size: 1.5rem;
-    margin-bottom: 12px;
+}
+
+.card-subtitle {
+    font-style: italic;
+    text-align: center;
+    font-size: 1rem;
+    color: #333;
+}
+
+.card-content {
+    margin-top: 12px;
 }
 
 @media not screen and (max-width: 800px) {

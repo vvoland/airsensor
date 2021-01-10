@@ -29,20 +29,29 @@ export class SensorCardRenderer {
                 </div>
         `;
 
+        result += `
+                <div class="card-subtitle">
+                    Air Sensor
+                </div>
+        `;
+
+        result += `<div class="card-content">`;
+        result += `<ul class="sensor-content-readings">`;
         this.readings.forEach((reading, kind) => {
             let value = reading.render();
             let kind_str = localization.of(kind);
             result += `
-                    <div class="card-content">
-                        <p class="sensor-reading">
+                        <li class="sensor-reading">
                             <span class="sensor-reading-kind">${kind_str}</span>
                             <span class="sensor-reading-value">${value}</span>
-                        </p>
-                    </div>`;
+                        </p>`;
         });
+        result += `</ul>`;
+        result += `</div>`;
         result += `
                     <canvas id="sensor-chart-${this.name}"></canvas>
-            </div>`;
+        `;
+        result += "</div>";
 
         return result;
     }
