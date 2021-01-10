@@ -44,7 +44,9 @@ export class SensorCardRenderer {
                         <li class="sensor-reading">
                             <span class="sensor-reading-kind">${kind_str}</span>
                             <span class="sensor-reading-value">${value}</span>
-                        </p>`;
+                        </p>
+                        <canvas id="sensor-chart-${this.name}-${kind}"></canvas>
+                        `;
         });
         result += `</ul>`;
         result += `</div>`;
