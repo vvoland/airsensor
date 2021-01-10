@@ -21,6 +21,19 @@ async function refresh() {
     //let margin = {top: 10, right: 30, bottom: 60, left: 60};
     let margin = {top: 0, right: 0, bottom: 0, left: 0};
 
+    let last_reading = readings[readings.length - 1];
+
+    let is_recent = (reading: TimestampedSensorReading) => {
+        let ms_diff = last_reading.timestamp.getTime()
+                        - reading.timestamp.getTime();
+        let hours_diff = ms_diff
+                        / 1000 // ms -> s
+                        / 60   // s -> m
+                        / 60;  // m -> h
+
+        return hours_diff <= 24;
+    };
+
     let is_relevant = (reading: TimestampedSensorReading) => {
         switch (reading.kind) {
             case ReadingKind.Temperature:
@@ -34,7 +47,7 @@ async function refresh() {
 
     let reading_to_xy = (reading: TimestampedSensorReading) => {
         return {
-            x: Date.parse(reading.timestamp),
+            x: reading.timestamp,
             y: reading.value
         };
     };
@@ -55,6 +68,7 @@ async function refresh() {
                     data: readings
                         .filter(reading => reading.kind == ReadingKind.Temperature)
                         .filter(is_relevant)
+                        .filter(is_recent)
                         .map(reading_to_xy),
                     pointRadius: 1
                 },
@@ -66,6 +80,7 @@ async function refresh() {
                     data: readings
                         .filter(reading => reading.kind == ReadingKind.Humidity)
                         .filter(is_relevant)
+                        .filter(is_recent)
                         .map(reading_to_xy),
                     pointRadius: 1
                 }
@@ -75,7 +90,7 @@ async function refresh() {
             layout: {
                 padding: margin
             },
-            showLines: false,
+            showLines: true,
             responsive: true,
             scales: {
                 xAxes: [
@@ -84,7 +99,7 @@ async function refresh() {
                         time: {
                             unit: "minute",
                             displayFormats: {
-                                minute: "ll h:mm a"
+                                minute: "h:mm"
                             }
                         },
                         display: true,
