@@ -18,7 +18,7 @@ export async function fetch_latest(sensor_id: Number, kind: ReadingKind): Promis
 export class TimestampedSensorReading {
     kind: ReadingKind;
     value: number;
-    timestamp: string;
+    timestamp: Date;
 }
 
 export async function fetch_readings(sensor_id: Number): Promise<Array<TimestampedSensorReading>> {
@@ -26,6 +26,12 @@ export async function fetch_readings(sensor_id: Number): Promise<Array<Timestamp
         .catch(error => {
             console.log(`Failed to get readings for sensor ${sensor_id}`);
             return [];
+        })
+        .then((readings: any[]) => {
+            return readings.map(reading => {
+                reading.timestamp = new Date(reading.timestamp);
+                return reading;
+            })
         });
 }
 
