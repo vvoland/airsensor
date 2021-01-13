@@ -84,6 +84,10 @@ h1 {
     text-align: center;
 }
 
+.sensor-content-readings li:not(:last-child) {
+    margin-bottom: 12px;
+}
+
 .card-title {
     font-weight: bold;
     text-align: center;
