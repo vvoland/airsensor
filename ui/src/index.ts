@@ -173,58 +173,6 @@ async function refresh() {
         ReadingKind.Humidity,
         ChartInterval.LastHour
     );
-
-    //let margin = {top: 10, right: 30, bottom: 60, left: 60};
-
-    /*
-
-    var svg = d3.select("#sensor-chart-Salon")
-        .append("svg")
-            .attr("width", width + margin.left + margin.right)
-            .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-            .attr("transform", `translate(${margin.left}, ${margin.right})`);
-
-    let parseTimestamp = d3.utcParse("%Y-%m-%dT%H:%M:%S.%f");
-
-    let x = d3.scaleTime()
-        .domain(d3.extent(readings, (reading) => {
-            return parseTimestamp(reading.timestamp);
-        }))
-        .range([0, width]);
-
-    svg.append("g")
-        .attr("transform", `translate(0, ${height})`)
-        .call(d3.axisBottom(x));
-
-    let y = d3.scaleLinear()
-        .domain([0, d3.max(readings, (reading) => {
-            return +reading.value;
-        })])
-        .range([height, 0]);
-
-    svg.append("g")
-        .call(d3.axisLeft(y));
-
-    let c = readings[0].timestamp;
-    console.log(c);
-    console.log(parseTimestamp(c));
-
-    svg.append("path")
-        .datum(readings)
-        .attr("fill", "none")
-        .attr("stroke", "purple")
-        .attr("stroke-width", 4)
-        .attr("d", d3.line<TimestampedSensorReading>()
-            .x(reading => x(parseTimestamp(reading.timestamp)))
-            .y(reading => y(reading.value)));
-
-//              .x((reading) => { return 0; })
-              //.y((reading) => { return 1; }));
-
-    //let x = d3.scaleTime()
-     //   .domain(
-    */
 }
 
 
