@@ -34,7 +34,7 @@ use std::sync::atomic::{Ordering, AtomicBool};
 use std::thread;
 use std::time::Duration;
 use chrono::prelude::*;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use diesel::prelude::*;
 use diesel::r2d2;
@@ -124,7 +124,8 @@ impl SqliteDatabase {
             _ => SensorReading::Unknown
         };
 
-        TimestampedSensorReading { timestamp: dto.timestamp, reading }
+        let utc = DateTime::<Utc>::from_utc(dto.timestamp, Utc);
+        TimestampedSensorReading { timestamp: utc, reading }
     }
 
     fn to_sensor(sensor: &schema::SensorDTO) -> Sensor {
@@ -360,6 +361,22 @@ async fn sensor_readings_after_time<D: Database>(
     map_db_call_to_http_response(db.get_readings_after(&handle, date))
 }
 
+async fn sensor_readings_after_time_utc<D: Database>(
+    request: web::Path<(D::SensorHandle, chrono::DateTime<Utc>)>,
+    db: web::Data<D>)
+    -> HttpResponse {
+
+    let handle = request.0.0;
+    let date = request.0.1;
+    let time = date
+        // Subtract 1ms to ensure greather-than
+        .checked_add_signed(chrono::Duration::milliseconds(1))
+        .unwrap()
+        .naive_utc();
+
+    map_db_call_to_http_response(db.get_readings_after(&handle, time))
+}
+
 async fn wait_for_keyboard_interrupt(mut wait_action: Box<dyn FnMut()>) -> () {
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::SIGINT, Arc::clone(&stop)).expect("Failed to register SIGINT hook");
@@ -383,7 +400,7 @@ pub enum SensorReading {
 }
 
 pub struct TimestampedSensorReading {
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
     pub reading: SensorReading
 }
 
@@ -617,7 +634,10 @@ fn build_http<D: Database<SensorHandle=i32> + Send + Clone + 'static, S: Sensors
                         .route(web::get().to(sensor_status::<D, S>))
                     )
                     .service(web::resource("/{id}/readings/after/{timestamp}")
-                        .route(web::get().to(sensor_readings_after_time::<D>))
+                        .route(web::get()
+                            .to(sensor_readings_after_time::<D>)
+                            .to(sensor_readings_after_time_utc::<D>)
+                        )
                     )
                     .service(web::resource("/{id}/latest/{kind}")
                         .route(web::get().to(sensor_latest_reading::<D>))
