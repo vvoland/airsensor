@@ -1,6 +1,7 @@
 extern crate btleplug;
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate diesel_migrations;
+extern crate env_logger;
 
 use btleplug::api::{Central, CentralEvent, Peripheral, BDAddr};
 #[cfg(target_os = "linux")]
@@ -26,7 +27,7 @@ fn get_central(manager: &Manager) -> ConnectedAdapter {
 }
 
 use std::time::SystemTime;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Scope, rt::System};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Scope, rt::System, middleware::Logger};
 use std::vec::Vec;
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::sync::atomic::{Ordering, AtomicBool};
@@ -632,6 +633,7 @@ fn build_http<D: Database<SensorHandle=i32> + Send + Clone + 'static, S: Sensors
                     .service(status)
                     .service(sensors_scope)
                     .service(frontend_scope)
+                    .wrap(Logger::default())
                     .data(db.clone())
                     .data(state.clone())
             })
@@ -705,6 +707,7 @@ mod schema {
 
 #[actix_web::main]
 async fn main() -> Result<(), String> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let database = SqliteDatabase::new("./database.sqlite3");
 
