@@ -54,6 +54,7 @@ h1 {
     margin: 8px;
     padding: 16px;
     width: auto;
+    min-width: 400px;
 }
 
 .card p {

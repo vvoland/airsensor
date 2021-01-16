@@ -35,6 +35,21 @@ export async function fetch_readings(sensor_id: Number): Promise<Array<Timestamp
         });
 }
 
+export async function fetch_readings_after(sensor_id: Number, after: Date): Promise<Array<TimestampedSensorReading>> {
+    let afterStr = after.toISOString();
+    return await fetch_path(`${sensor_id}/readings/after/${afterStr}`)
+        .catch(error => {
+            console.log(`Failed to get readings for sensor ${sensor_id} after ${afterStr}`);
+            return [];
+        })
+        .then((readings: any[]) => {
+            return readings.map(reading => {
+                reading.timestamp = new Date(reading.timestamp);
+                return reading;
+            })
+        });
+}
+
 export async function fetch_status(sensor_id: Number): Promise<boolean> {
     return await fetch_path(`${sensor_id}`)
         .catch(error => {
