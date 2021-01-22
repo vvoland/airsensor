@@ -72,7 +72,7 @@ export class SensorUpdater {
     }
 
     public async refresh() {
-        await Promise.all([
+        return Promise.all([
             fetch_latest(this.id, ReadingKind.Temperature), fetch_latest(this.id, ReadingKind.Humidity),
             fetch_status(this.id), fetch_readings_after(this.id, this.lastUpdate)
         ])
@@ -93,9 +93,12 @@ export class SensorUpdater {
                     this.view.setChartData(ReadingKind.Temperature, temperature_xy);
                     this.view.setChartData(ReadingKind.Humidity, humidity_xy);
                 }
+
+                return true;
             })
             .catch(reason => {
                 console.warn("Failed to get an update! " + reason);
+                return false;
             });
     }
 }

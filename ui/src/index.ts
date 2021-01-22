@@ -14,8 +14,12 @@ export async function init() {
     salon.setName("Salon");
     salonUpdater = new SensorUpdater(salon, 1);
 
-    await salonUpdater.refresh();
-    setInterval(() => salonUpdater.refresh(), 5000);
+    let updateAllAndScheduleNext = async (interval) => {
+        await salonUpdater.refresh();
+        setTimeout(updateAllAndScheduleNext, interval)
+    };
+
+    await updateAllAndScheduleNext(5000);
 }
 
 if (document.readyState === "complete") {
