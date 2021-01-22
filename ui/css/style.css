@@ -2,6 +2,7 @@
     box-sizing: border-box;
     padding: 0;
     margin: 0;
+    animation-duration: 0.33s;
 }
 
 body {
@@ -13,12 +14,13 @@ body {
 header {
     width: 100%;
     margin: 0;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
     padding: 4px;
     color: white;
     font-weight: 700;
     /*background-color: teal;*/
     background-color: #4a6670;
+    box-shadow: 0px 4px 4px 1px rgba(0,0,0,0.3);
 }
 
 header h1 {
@@ -47,14 +49,15 @@ h1 {
     border-radius: 8px;
     background-color: white;
     border-style: solid;
-    border-width: 4px;
+    border-width: 0px;
     border-color: #888;
-    box-shadow: 6px 6px rgba(0.0, 0.0, 0.0, 0.1);
     color: #000;
     margin: 8px;
     padding: 16px;
     width: auto;
     min-width: 400px;
+
+    box-shadow: 3px 4px 12px 3px rgba(0,0,0,0.2);
 }
 
 .card p {

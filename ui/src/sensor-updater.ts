@@ -87,8 +87,8 @@ export class SensorUpdater {
                     this.lastUpdate = readings[readings.length - 1].timestamp;
 
 
-                    let temperature_xy = this.constructXY(ReadingKind.Temperature, ChartInterval.LastHalfDay);
-                    let humidity_xy = this.constructXY(ReadingKind.Humidity, ChartInterval.LastHalfDay);
+                    let temperature_xy = this.constructXY(ReadingKind.Temperature, ChartInterval.LastDay);
+                    let humidity_xy = this.constructXY(ReadingKind.Humidity, ChartInterval.LastDay);
 
                     this.view.setChartData(ReadingKind.Temperature, temperature_xy);
                     this.view.setChartData(ReadingKind.Humidity, humidity_xy);
