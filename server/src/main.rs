@@ -153,7 +153,14 @@ impl SqliteDatabase {
     fn sql_error_to_db_error(err: diesel::result::Error) -> DatabaseError {
         match err {
             diesel::result::Error::AlreadyInTransaction => DatabaseError::Busy,
-            _ => DatabaseError::Other(err.to_string())
+            diesel::result::Error::DatabaseError(_, _) => {
+                if err.to_string().to_lowercase().contains("database is locked") {
+                    DatabaseError::Busy
+                } else {
+                    DatabaseError::Other(format!("{:?}", err))
+                }
+            },
+            err => DatabaseError::Other(err.to_string())
         }
     }
 }
