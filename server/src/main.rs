@@ -26,7 +26,7 @@ fn get_central(manager: &Manager) -> ConnectedAdapter {
     adapter.connect().unwrap()
 }
 
-use std::time::SystemTime;
+use std::time::Instant;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Scope, rt::System, middleware::Logger};
 use std::vec::Vec;
 use std::sync::{mpsc, Arc, Mutex, RwLock};
@@ -763,8 +763,8 @@ async fn main() -> Result<(), String> {
     let events = central.event_receiver().unwrap();
     let mut master = BleMaster::new(database, app_state);
 
-    let mut prev_poll = SystemTime::now();
-    let mut prev_inspect = SystemTime::now();
+    let mut prev_poll = Instant::now();
+    let mut prev_inspect = Instant::now();
 
     println!("Running the app...");
     wait_for_keyboard_interrupt(Box::new(move || {
@@ -774,7 +774,7 @@ async fn main() -> Result<(), String> {
                     println!("{} discovered", addr);
                     match central.peripheral(addr) {
                         Some(peripheral) => { 
-                            prev_inspect = SystemTime::now();
+                            prev_inspect = Instant::now();
                             master.on_discovered(peripheral);
                         },
                         None => println!("* Failed to get the peripheral")
@@ -790,15 +790,15 @@ async fn main() -> Result<(), String> {
             _ => {}
         };
 
-        let now = SystemTime::now();
-        let inspect_dt = now.duration_since(prev_inspect).unwrap();
+        let now = Instant::now();
+        let inspect_dt = now.duration_since(prev_inspect);
         if inspect_dt.as_secs() >= 1 {
             master.pop_and_inspect();
-            prev_inspect = SystemTime::now();
+            prev_inspect = Instant::now();
         }
-        let poll_dt = now.duration_since(prev_poll).unwrap();
+        let poll_dt = now.duration_since(prev_poll);
         if poll_dt.as_secs() >= 30 {
-            prev_poll = SystemTime::now();
+            prev_poll = Instant::now();
             let mut sensors = master.sensors.lock().expect("Poisoned mutex");
             sensors.retain(|sensor| master.try_poll_sensor(sensor));
         }
