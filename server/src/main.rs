@@ -63,7 +63,7 @@ pub trait Database {
     fn add_reading(&self,
         sensor: &Self::SensorHandle,
         timestamp: NaiveDateTime,
-        reading: SensorReading)
+        reading: &SensorReading)
         -> Result<(), DatabaseError>;
     fn get_readings(&self, handle: &Self::SensorHandle)
         -> Result<Vec<TimestampedSensorReading>, DatabaseError>;
@@ -185,12 +185,12 @@ impl Database for SqliteDatabase {
     fn add_reading(&self,
         handle: &Self::SensorHandle,
         timestamp: NaiveDateTime,
-        reading: SensorReading)
+        reading: &SensorReading)
     -> Result<(), DatabaseError> {
 
         let (kind, value) = match reading {
-            SensorReading::Temperature(temperature) => ("T", temperature as i32),
-            SensorReading::Humidity(humidity) => ("H", humidity as i32),
+            SensorReading::Temperature(temperature) => ("T", *temperature as i32),
+            SensorReading::Humidity(humidity) => ("H", *humidity as i32),
             SensorReading::Unknown => panic!("An attempt to insert unknown sensor reading")
         };
 
@@ -391,7 +391,7 @@ pub enum SensorFamily {
     Alpha
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all="lowercase")]
 pub enum SensorReading {
     Temperature(i32),
@@ -593,10 +593,19 @@ impl<P: Peripheral, D: Database, S: SensorsState> BleMaster<P, D, S> {
                 self.db.create_sensor_if_not_exists(&sensor_data)
                     .expect("Could not ensure that the sensor exists in the database");
                 let handle = self.db.get_sensor_handle(&sensor_data).expect("Failed to get handle to just added sensor");
-                self.db.add_reading(&handle, now, SensorReading::Temperature(reading.temperature as i32))
-                    .expect("Could not insert temperature reading");
-                self.db.add_reading(&handle, now, SensorReading::Humidity(reading.humidity))
-                    .expect("Could not insert temperature reading");
+
+                for reading in [
+                    SensorReading::Temperature(reading.temperature as i32),
+                    SensorReading::Humidity(reading.humidity)
+                ].iter() {
+                    loop {
+                        match self.db.add_reading(&handle, now, reading) {
+                            Ok(_) => break,
+                            Err(DatabaseError::Busy) => thread::sleep(Duration::from_secs(1)),
+                            Err(err) => panic!("Could not insert reading {:?} due to {:?}", reading, err)
+                        }
+                    }
+                }
 
                 true
             }
