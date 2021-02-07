@@ -797,7 +797,7 @@ async fn main() -> Result<(), String> {
             prev_inspect = Instant::now();
         }
         let poll_dt = now.duration_since(prev_poll);
-        if poll_dt.as_secs() >= 30 {
+        if poll_dt.as_secs() >= 5*60 {
             prev_poll = Instant::now();
             let mut sensors = master.sensors.lock().expect("Poisoned mutex");
             sensors.retain(|sensor| master.try_poll_sensor(sensor));
