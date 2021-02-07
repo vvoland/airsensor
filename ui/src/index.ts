@@ -16,10 +16,10 @@ export async function init() {
 
     let updateAllAndScheduleNext = async (interval) => {
         await salonUpdater.refresh();
-        setTimeout(updateAllAndScheduleNext, interval)
+        setTimeout(() => updateAllAndScheduleNext(interval), interval);
     };
 
-    await updateAllAndScheduleNext(5000);
+    await updateAllAndScheduleNext(30 * 1000);
 }
 
 if (document.readyState === "complete") {
