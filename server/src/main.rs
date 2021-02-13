@@ -38,6 +38,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use diesel::prelude::*;
 use diesel::r2d2;
+use log::{info, warn};
 
 mod alpha_sensor;
 use alpha_sensor::*;
@@ -228,15 +229,27 @@ impl Database for SqliteDatabase {
     fn get_readings_after(&self, handle: &Self::SensorHandle, timestamp: NaiveDateTime)
         -> Result<Vec<TimestampedSensorReading>, DatabaseError> {
 
-        self.connection_or_busy()
+        let before_db = Instant::now();
+
+        let result = self.connection_or_busy()
             .and_then(|conn| {
                 schema::Readings::table
                     .filter(schema::Readings::sensor.eq(handle))
                     .filter(schema::Readings::timestamp.gt(timestamp))
                     .load::<schema::ReadingDTO>(&conn)
                     .map_err(Self::sql_error_to_db_error)
-            })
-            .map(Self::map_readings)
+            });
+
+        let diff = Instant::now().duration_since(before_db);
+
+        let before_map = Instant::now();
+        let mapped = result
+            .map(Self::map_readings);
+        let diff2 = Instant::now().duration_since(before_map);
+
+        info!("Getting readings took {}ms, mapping took {}ms", diff.as_millis(), diff2.as_millis());
+
+        return mapped;
     }
 
     fn get_sensor_by_addr(&self, addr: String) -> Result<Self::SensorHandle, DatabaseError> {
@@ -662,6 +675,7 @@ fn build_http<D: Database<SensorHandle=i32> + Send + Clone + 'static, S: Sensors
 
                 let frontend_scope: Scope = web::scope("/")
                     .service(actix_files::Files::new("", "./app/")
+                        .use_etag(true)
                         .index_file("index.html")
                         .default_handler(web::route().to(not_found)));
 
