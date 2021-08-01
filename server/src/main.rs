@@ -27,18 +27,17 @@ fn get_central(manager: &Manager) -> ConnectedAdapter {
 }
 
 use std::time::Instant;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Scope, rt::System, middleware::Logger};
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder, Scope, rt::System, middleware::Logger};
 use std::vec::Vec;
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::sync::atomic::{Ordering, AtomicBool};
 use std::thread;
 use std::time::Duration;
-use chrono::prelude::*;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use diesel::prelude::*;
 use diesel::r2d2;
-use log::{info, warn};
+use log::info;
 
 mod alpha_sensor;
 use alpha_sensor::*;
